@@ -25,10 +25,20 @@ export enum AspectRatio {
 export enum SocialPlatform {
   TIKTOK = 'TikTok',
   INSTAGRAM = 'Instagram',
+  YOUTUBE_SHORTS = 'YouTube Shorts',
   YOUTUBE = 'YouTube',
   FACEBOOK = 'Facebook',
   LINKEDIN = 'LinkedIn',
   X = 'X (Twitter)'
+}
+
+export interface MusicTrack {
+  id: string;
+  name: string;
+  genre: string;
+  type: 'preset' | 'upload';
+  file?: File;
+  url?: string;
 }
 
 export interface ImageFile {
@@ -56,4 +66,6 @@ export interface ProductionData {
   videoObject?: Video;
   targetPlatform: SocialPlatform;
   groundingSources?: GroundingSource[];
+  selectedMusic?: MusicTrack;
+  musicMoodSuggestion?: string;
 }

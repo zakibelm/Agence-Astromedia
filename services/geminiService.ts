@@ -3,22 +3,46 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import { AspectRatio, ImageFile, AgentConfig, SocialPlatform, GroundingSource } from '../types';
 
-// Agent 1: Orchestrateur
-export const orchestrate = async (prompt: string, config: AgentConfig, platform: SocialPlatform): Promise<string> => {
+// Agent 1: Orchestrateur avec sortie structurée (Visuel + Musique)
+export const orchestrate = async (prompt: string, config: AgentConfig, platform: SocialPlatform): Promise<{enhancedPrompt: string, musicMood: string, recommendedGenre: string}> => {
   const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
   const instruction = `PERSONA: ${config.orchestratorPersona}. 
   TARGET PLATFORM: ${platform}.
-  Task: Transform the user's idea into a detailed cinematic visual prompt. Focus on mood and technical lightning.`;
+  Task: Analyze the user's creative vision. 
+  1. Transform it into a detailed cinematic visual prompt.
+  2. Determine the perfect musical atmosphere (mood and genre) to match this vision.
+  Return a JSON object with keys: "enhancedPrompt", "musicMood", "recommendedGenre" (must be one of: cinematic, urban, lofi, energetic).`;
   
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
     contents: prompt,
-    config: { systemInstruction: instruction }
+    config: { 
+      systemInstruction: instruction,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          enhancedPrompt: { type: Type.STRING },
+          musicMood: { type: Type.STRING },
+          recommendedGenre: { type: Type.STRING }
+        },
+        required: ["enhancedPrompt", "musicMood", "recommendedGenre"]
+      }
+    }
   });
-  return response.text || prompt;
+
+  try {
+    return JSON.parse(response.text);
+  } catch (e) {
+    return { 
+      enhancedPrompt: prompt, 
+      musicMood: "Neutral cinematic", 
+      recommendedGenre: "cinematic" 
+    };
+  }
 };
 
 // Agent Image: Gemini 2.5 Flash Image
@@ -50,7 +74,7 @@ export const generateArt = async (prompt: string, aspectRatio: AspectRatio): Pro
   return { file, base64 };
 };
 
-// Agent 2: Marketer - AVEC GOOGLE SEARCH GROUNDING
+// Agent 2: Marketer
 export const marketAnalysis = async (
   image: ImageFile, 
   prompt: string, 
@@ -59,19 +83,16 @@ export const marketAnalysis = async (
 ): Promise<{copy: string; sources: GroundingSource[]}> => {
   const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
   
-  // Le Marketer fait d'abord une recherche sur les tendances actuelles
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
-    contents: `Research current viral advertising trends and successful hooks for ${platform} in 2024 related to this concept: "${prompt}". Then, write a high-converting ad copy for the attached image.`,
+    contents: `Analyze current viral trends for ${platform} and write high-converting ad copy for this concept: "${prompt}". Use the image for context.`,
     config: { 
-      systemInstruction: `PERSONA: ${config.marketerPersona}. Use Google Search to find real-time trends on ${platform}.`,
+      systemInstruction: `PERSONA: ${config.marketerPersona}. Use Google Search to find real-time trends.`,
       tools: [{googleSearch: {}}]
     }
   });
 
   const copy = response.text || "Erreur de génération marketing.";
-  
-  // Extraction des sources de recherche
   const sources: GroundingSource[] = [];
   const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
   if (chunks) {
@@ -99,7 +120,7 @@ export const generateCampaignVideo = async (
   
   const scriptResponse = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
-    contents: `IMAGE READY. PLATFORM: ${platform}. COPY: ${marketingCopy}. Create a motion prompt for Veo 3.1.`,
+    contents: `Create a motion prompt for Veo 3.1 based on this script: ${marketingCopy}. The visuals must be high-end.`,
   });
   
   const motionPrompt = scriptResponse.text || "Cinematic movement.";

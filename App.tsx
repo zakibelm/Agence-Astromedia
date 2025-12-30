@@ -6,28 +6,28 @@
 import React, { useState } from 'react';
 import LoadingIndicator from './components/LoadingIndicator';
 import PromptForm from './components/PromptForm';
+import { PRESET_TRACKS } from './components/MusicSelector';
 import { orchestrate, generateArt, marketAnalysis, generateCampaignVideo } from './services/geminiService';
 import {
   AppState,
   AspectRatio,
   SocialPlatform,
   AgentConfig,
-  ProductionData
+  ProductionData,
+  MusicTrack
 } from './types';
 import { 
   Settings, 
   Play, 
   Cpu, 
-  Palette, 
   Megaphone, 
   Clapperboard, 
-  CheckCircle2, 
-  ChevronRight,
   RotateCcw,
-  Download,
-  Share2,
   ExternalLink,
-  Search
+  Search,
+  Music,
+  Volume2,
+  Sparkles
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -48,17 +48,37 @@ const App: React.FC = () => {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>(AspectRatio.LANDSCAPE);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const startProduction = async (prompt: string, ar: AspectRatio, platform: SocialPlatform) => {
+  const startProduction = async (prompt: string, ar: AspectRatio, platform: SocialPlatform, manualMusic: MusicTrack | null) => {
     setAspectRatio(ar);
-    setProd({ initialPrompt: prompt, enhancedPrompt: "", targetPlatform: platform, groundingSources: [] });
+    setProd({ 
+      initialPrompt: prompt, 
+      enhancedPrompt: "", 
+      targetPlatform: platform, 
+      groundingSources: [],
+      selectedMusic: manualMusic || undefined
+    });
     
     try {
       setAppState(AppState.ORCHESTRATING);
-      const enhanced = await orchestrate(prompt, config, platform);
-      setProd(prev => ({ ...prev, enhancedPrompt: enhanced }));
+      
+      // L'Orchestrateur décide du visuel ET de la recommandation musicale
+      const { enhancedPrompt, musicMood, recommendedGenre } = await orchestrate(prompt, config, platform);
+      
+      // Si l'utilisateur n'a pas forcé de musique, on prend celle du réalisateur
+      let finalMusic = manualMusic;
+      if (!manualMusic) {
+        finalMusic = PRESET_TRACKS.find(t => t.id === recommendedGenre) || PRESET_TRACKS[0];
+      }
+
+      setProd(prev => ({ 
+        ...prev, 
+        enhancedPrompt, 
+        selectedMusic: finalMusic || undefined,
+        musicMoodSuggestion: musicMood // On stocke l'intention pour l'affichage
+      }));
       
       setAppState(AppState.IMAGING);
-      const image = await generateArt(enhanced, ar);
+      const image = await generateArt(enhancedPrompt, ar);
       setProd(prev => ({ ...prev, image }));
       setAppState(AppState.MARKETING);
       
@@ -173,9 +193,24 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase mb-4">
                        <Search size={14}/> Analyse Strategique IA
                     </div>
-                    <p className="text-2xl font-bold leading-tight mb-8">
+                    <p className="text-2xl font-bold leading-tight mb-6">
                       Le visuel est prêt. Notre assistant marketing finalise l'analyse pour maximiser votre impact sur <span className="text-white underline">{prod.targetPlatform}</span>.
                     </p>
+                    
+                    {prod.selectedMusic && (
+                      <div className="mb-6 flex flex-col gap-2 bg-indigo-500/5 p-4 rounded-2xl border border-indigo-500/20">
+                        <div className="flex items-center gap-2 text-indigo-400">
+                           <Sparkles size={14} />
+                           <p className="text-[10px] uppercase font-black">Intention du Réalisateur</p>
+                        </div>
+                        <p className="text-xs text-white font-medium">"{prod.musicMoodSuggestion}"</p>
+                        <div className="flex items-center gap-2 mt-2 opacity-50">
+                           <Volume2 size={12} />
+                           <p className="text-[9px] font-mono">{prod.selectedMusic.name} ({prod.selectedMusic.genre})</p>
+                        </div>
+                      </div>
+                    )}
+
                     <button 
                       onClick={approveImage}
                       className="w-full py-4 bg-white text-black font-black rounded-2xl hover:bg-indigo-400 hover:text-white transition-all flex items-center justify-center gap-3"
@@ -202,6 +237,25 @@ const App: React.FC = () => {
                       {prod.marketingCopy}
                     </p>
                     
+                    {prod.selectedMusic && (
+                      <div className="border-t border-gray-800 pt-4 mb-4">
+                        <h5 className="text-[10px] text-gray-500 uppercase mb-3 text-indigo-400/50 flex items-center gap-2">
+                          <Music size={10} /> Soundtrack Masterisée :
+                        </h5>
+                        <div className="bg-black/40 p-3 rounded-xl border border-gray-800 flex items-center justify-between">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-white">{prod.selectedMusic.name}</span>
+                            <span className="text-[9px] text-gray-500 uppercase">{prod.selectedMusic.genre}</span>
+                          </div>
+                          {prod.selectedMusic.url && (
+                            <audio controls className="h-6 w-32 filter invert hue-rotate-180 opacity-50">
+                              <source src={prod.selectedMusic.url} />
+                            </audio>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
                     {prod.groundingSources && prod.groundingSources.length > 0 && (
                       <div className="border-t border-gray-800 pt-4">
                         <h5 className="text-[10px] text-gray-500 uppercase mb-3 text-indigo-400/50">Intelligence Connectée (Sources) :</h5>
@@ -219,7 +273,7 @@ const App: React.FC = () => {
                   <div className="flex flex-col gap-4">
                     <div className="bg-indigo-600/10 border border-indigo-500/30 p-6 rounded-3xl">
                        <h4 className="text-white text-sm font-bold mb-2">Astromédia Intelligence d'Élite</h4>
-                       <p className="text-gray-400 text-xs leading-relaxed">Contenu optimisé par nos agents pour une audience {prod.targetPlatform}. Produit fini prêt pour l'exportation master.</p>
+                       <p className="text-gray-400 text-xs leading-relaxed">Contenu optimisé par nos agents pour une audience {prod.targetPlatform}. Le réalisateur a choisi un mood "{prod.musicMoodSuggestion}" pour maximiser l'émotion.</p>
                     </div>
                     <button onClick={() => setAppState(AppState.IDLE)} className="flex items-center justify-center gap-2 py-4 bg-gray-900 border border-gray-800 rounded-2xl font-bold hover:bg-gray-800 transition-all mt-auto">
                       <RotateCcw size={18} /> Nouvelle Production
