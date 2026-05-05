@@ -50,11 +50,23 @@ export interface GroundingSource {
   uri: string;
 }
 
-export interface AgentConfig {
+export interface AppSettings {
+  apiKey: string;
+  textModel: string;
+  imageModel: string;
   orchestratorPersona: string;
   marketerPersona: string;
   directorPersona: string;
 }
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  apiKey: '',
+  textModel: 'google/gemini-2.5-pro',
+  imageModel: 'openai/dall-e-3',
+  orchestratorPersona: 'A strategic creative lead with expertise in cinematic storytelling and technical prompt engineering.',
+  marketerPersona: 'A world-class advertising executive. You use real-time data to create hyper-relevant viral content.',
+  directorPersona: 'A visionary Hollywood director known for breathtaking visuals.',
+};
 
 export interface ProductionData {
   initialPrompt: string;

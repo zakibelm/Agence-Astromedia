@@ -8,36 +8,56 @@ import LoadingIndicator from './components/LoadingIndicator';
 import PromptForm from './components/PromptForm';
 import { PRESET_TRACKS } from './components/MusicSelector';
 import { orchestrate, generateArt, marketAnalysis } from './services/geminiService';
+import SettingsPage from './components/SettingsPage';
 import {
   AppState,
   AspectRatio,
   SocialPlatform,
-  AgentConfig,
+  AppSettings,
+  DEFAULT_SETTINGS,
   ProductionData,
   MusicTrack,
   ImageFile
 } from './types';
-import { 
-  Settings, 
-  Play, 
-  Cpu, 
-  Megaphone, 
-  Clapperboard, 
+import {
+  Settings,
+  Play,
+  Megaphone,
+  Clapperboard,
   RotateCcw,
   ExternalLink,
   Search,
   Music,
   Volume2,
-  Sparkles
+  Sparkles,
+  AlertTriangle
 } from 'lucide-react';
 
+const STORAGE_KEY = 'astromedia_settings';
+
+const loadSettings = (): AppSettings => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+  } catch {}
+  return DEFAULT_SETTINGS;
+};
+
+const saveSettings = (s: AppSettings) => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+};
+
 const App: React.FC = () => {
-  const [appState, setAppState] = useState<AppState>(AppState.IDLE);
-  const [config, setConfig] = useState<AgentConfig>({
-    orchestratorPersona: "A strategic creative lead with expertise in cinematic storytelling and technical prompt engineering.",
-    marketerPersona: "A world-class advertising executive. You use real-time data to create hyper-relevant viral content.",
-    directorPersona: "A visionary Hollywood director known for breathtaking visuals."
-  });
+  const [settings, setSettings] = useState<AppSettings>(loadSettings);
+  const [appState, setAppState] = useState<AppState>(
+    () => loadSettings().apiKey ? AppState.IDLE : AppState.SETTINGS
+  );
+
+  const handleSaveSettings = (s: AppSettings) => {
+    saveSettings(s);
+    setSettings(s);
+    setAppState(AppState.IDLE);
+  };
   
   const [prod, setProd] = useState<ProductionData>({
     initialPrompt: "",
@@ -73,8 +93,8 @@ const App: React.FC = () => {
       
       // L'Orchestrateur décide du visuel ET de la recommandation musicale
       const { enhancedPrompt, musicMood, recommendedGenre } = await orchestrate(
-        prompt, 
-        config, 
+        prompt,
+        settings,
         platform,
         productImages,
         logo || undefined
@@ -94,7 +114,7 @@ const App: React.FC = () => {
       }));
       
       setAppState(AppState.IMAGING);
-      const image = await generateArt(enhancedPrompt, ar);
+      const image = await generateArt(enhancedPrompt, ar, settings);
       setProd(prev => ({ ...prev, image }));
       setAppState(AppState.MARKETING);
       
@@ -111,7 +131,7 @@ const App: React.FC = () => {
       const { copy, sources } = await marketAnalysis(
         prod.image,
         prod.initialPrompt,
-        config,
+        settings,
         prod.targetPlatform,
         prod.productAssets,
         prod.logo
@@ -125,37 +145,6 @@ const App: React.FC = () => {
     }
   };
 
-  const renderSettings = () => (
-    <div className="flex-grow flex flex-col items-center justify-center p-8 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4">
-      <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
-        <Settings className="text-indigo-400" /> Agent Laboratory
-      </h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full mb-8">
-        {[
-          { key: 'orchestratorPersona', label: 'Orchestrator', icon: Cpu },
-          { key: 'marketerPersona', label: 'Marketer', icon: Megaphone },
-          { key: 'directorPersona', label: 'Director', icon: Clapperboard }
-        ].map(agent => (
-          <div key={agent.key} className="bg-[#111] border border-gray-800 p-6 rounded-2xl flex flex-col gap-4">
-            <div className="flex items-center gap-2 text-indigo-400 font-bold">
-              <agent.icon size={18} /> {agent.label}
-            </div>
-            <textarea
-              className="bg-black/50 border border-gray-800 rounded-xl p-3 text-sm min-h-[150px] focus:border-indigo-500 outline-none"
-              value={(config as any)[agent.key]}
-              onChange={(e) => setConfig({...config, [agent.key]: e.target.value})}
-            />
-          </div>
-        ))}
-      </div>
-      <button 
-        onClick={() => setAppState(AppState.IDLE)}
-        className="px-12 py-4 bg-white text-black font-bold rounded-full hover:bg-indigo-400 hover:text-white transition-all"
-      >
-        Sauvegarder & Retour
-      </button>
-    </div>
-  );
 
   return (
     <div className="h-screen bg-[#050505] text-gray-200 flex flex-col font-sans overflow-hidden">
@@ -170,15 +159,28 @@ const App: React.FC = () => {
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
-          <button onClick={() => setAppState(AppState.SETTINGS)} className="p-3 hover:bg-gray-900 rounded-xl transition-colors border border-gray-800">
+        <div className="flex items-center gap-3">
+          {!settings.apiKey && (
+            <div className="flex items-center gap-2 text-amber-400 text-xs bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
+              <AlertTriangle size={13} /> Clé API manquante
+            </div>
+          )}
+          <button
+            onClick={() => setAppState(AppState.SETTINGS)}
+            className="p-3 hover:bg-gray-900 rounded-xl transition-colors border border-gray-800 relative"
+          >
             <Settings size={20} />
+            {!settings.apiKey && (
+              <span className="absolute top-2 right-2 w-2 h-2 bg-amber-400 rounded-full" />
+            )}
           </button>
         </div>
       </header>
 
       <main className="flex-grow flex flex-col overflow-y-auto custom-scrollbar">
-        {appState === AppState.SETTINGS ? renderSettings() : (
+        {appState === AppState.SETTINGS ? (
+          <SettingsPage settings={settings} onSave={handleSaveSettings} />
+        ) : (
           <div className="max-w-6xl mx-auto w-full p-8 flex flex-col flex-grow">
             {appState === AppState.IDLE && (
               <div className="flex-grow flex flex-col items-center justify-center py-10 animate-in fade-in duration-1000">
