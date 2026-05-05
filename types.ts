@@ -3,7 +3,6 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import { Video } from '@google/genai';
 
 export enum AppState {
   IDLE,
@@ -63,7 +62,7 @@ export interface ProductionData {
   image?: ImageFile;
   marketingCopy?: string;
   videoUrl?: string;
-  videoObject?: Video;
+  videoObject?: any;
   targetPlatform: SocialPlatform;
   groundingSources?: GroundingSource[];
   selectedMusic?: MusicTrack;

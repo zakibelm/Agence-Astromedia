@@ -7,14 +7,15 @@ import React, { useState } from 'react';
 import LoadingIndicator from './components/LoadingIndicator';
 import PromptForm from './components/PromptForm';
 import { PRESET_TRACKS } from './components/MusicSelector';
-import { orchestrate, generateArt, marketAnalysis, generateCampaignVideo } from './services/geminiService';
+import { orchestrate, generateArt, marketAnalysis } from './services/geminiService';
 import {
   AppState,
   AspectRatio,
   SocialPlatform,
   AgentConfig,
   ProductionData,
-  MusicTrack
+  MusicTrack,
+  ImageFile
 } from './types';
 import { 
   Settings, 
@@ -108,19 +109,14 @@ const App: React.FC = () => {
     try {
       setAppState(AppState.MARKETING);
       const { copy, sources } = await marketAnalysis(
-        prod.image, 
-        prod.initialPrompt, 
-        config, 
+        prod.image,
+        prod.initialPrompt,
+        config,
         prod.targetPlatform,
         prod.productAssets,
         prod.logo
       );
       setProd(prev => ({ ...prev, marketingCopy: copy, groundingSources: sources }));
-      setAppState(AppState.SCRIPTING);
-      
-      setAppState(AppState.VIDEO_GEN);
-      const {url, video} = await generateCampaignVideo(prod.image, copy, aspectRatio, prod.targetPlatform);
-      setProd(prev => ({ ...prev, videoUrl: url, videoObject: video }));
       setAppState(AppState.SUCCESS);
       
     } catch (e: any) {
@@ -244,11 +240,13 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {appState === AppState.SUCCESS && prod.videoUrl && (
+            {appState === AppState.SUCCESS && prod.marketingCopy && (
               <div className="flex-grow flex flex-col items-center gap-10 py-10 animate-in fade-in duration-1000">
-                <div className={`w-full ${aspectRatio === AspectRatio.PORTRAIT ? 'max-w-sm' : 'max-w-4xl'} rounded-3xl overflow-hidden shadow-2xl border border-white/10`}>
-                  <video src={prod.videoUrl} controls autoPlay loop className="w-full object-cover" />
-                </div>
+                {prod.image && (
+                  <div className={`w-full ${aspectRatio === AspectRatio.PORTRAIT ? 'max-w-sm' : 'max-w-4xl'} rounded-3xl overflow-hidden shadow-2xl border border-white/10`}>
+                    <img src={URL.createObjectURL(prod.image.file)} className="w-full object-cover" alt="Visuel généré" />
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-5xl">
                   <div className="bg-[#111] p-8 rounded-3xl border border-gray-800">

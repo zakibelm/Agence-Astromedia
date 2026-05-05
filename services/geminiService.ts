@@ -1,207 +1,125 @@
-
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import { GoogleGenAI, Type } from '@google/genai';
+import OpenAI from 'openai';
 import { AspectRatio, ImageFile, AgentConfig, SocialPlatform, GroundingSource } from '../types';
 
-// Agent 1: Orchestrateur avec sortie structurée (Visuel + Musique)
+const createClient = () => new OpenAI({
+  baseURL: 'https://openrouter.ai/api/v1',
+  apiKey: process.env.OPENROUTER_API_KEY,
+  dangerouslyAllowBrowser: true,
+  defaultHeaders: {
+    'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : '',
+    'X-Title': 'Agence Astromédia',
+  },
+});
+
+// Agent 1: Orchestrateur — vision + sortie JSON structurée
 export const orchestrate = async (
-  prompt: string, 
-  config: AgentConfig, 
+  prompt: string,
+  config: AgentConfig,
   platform: SocialPlatform,
   productImages?: ImageFile[],
   logo?: ImageFile
-): Promise<{enhancedPrompt: string, musicMood: string, recommendedGenre: string}> => {
-  const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
-  const instruction = `PERSONA: ${config.orchestratorPersona}. 
-  TARGET PLATFORM: ${platform}.
-  Task: Analyze the user's creative vision and provided product assets. 
-  1. Transform it into a detailed cinematic visual prompt. If product images or a logo are provided, describe their style, colors, and features to incorporate them into the visual narrative.
-  2. Determine the perfect musical atmosphere (mood and genre) to match this vision.
-  Return a JSON object with keys: "enhancedPrompt", "musicMood", "recommendedGenre" (must be one of: cinematic, urban, lofi, energetic).`;
-  
-  const content: any[] = [{ text: prompt }];
-  
-  if (productImages && productImages.length > 0) {
-    productImages.forEach(img => {
-      content.push({
-        inlineData: {
-          mimeType: img.file.type,
-          data: img.base64.split(',')[1] // extract just the base64 part
-        }
-      });
-    });
-  }
-  
+): Promise<{ enhancedPrompt: string; musicMood: string; recommendedGenre: string }> => {
+  const client = createClient();
+
+  const systemPrompt = `PERSONA: ${config.orchestratorPersona}.
+TARGET PLATFORM: ${platform}.
+Task: Analyze the user's creative vision and provided product assets.
+1. Transform it into a detailed cinematic visual prompt. If product images or a logo are provided, describe their style, colors, and features to incorporate them into the visual narrative.
+2. Determine the perfect musical atmosphere (mood and genre) to match this vision.
+Return ONLY a valid JSON object with keys: "enhancedPrompt", "musicMood", "recommendedGenre" (must be one of: cinematic, urban, lofi, energetic).`;
+
+  const userContent: OpenAI.ChatCompletionContentPart[] = [{ type: 'text', text: prompt }];
+
+  productImages?.forEach(img => {
+    userContent.push({ type: 'image_url', image_url: { url: img.base64 } });
+  });
+
   if (logo) {
-    content.push({
-      inlineData: {
-        mimeType: logo.file.type,
-        data: logo.base64.split(',')[1]
-      }
-    });
+    userContent.push({ type: 'image_url', image_url: { url: logo.base64 } });
   }
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
-    contents: [{ role: 'user', parts: content }],
-    config: { 
-      systemInstruction: instruction,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          enhancedPrompt: { type: Type.STRING },
-          musicMood: { type: Type.STRING },
-          recommendedGenre: { type: Type.STRING }
-        },
-        required: ["enhancedPrompt", "musicMood", "recommendedGenre"]
-      }
-    }
+  const response = await client.chat.completions.create({
+    model: 'google/gemini-2.5-pro',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userContent },
+    ],
+    response_format: { type: 'json_object' },
   });
 
   try {
-    return JSON.parse(response.text);
-  } catch (e) {
-    return { 
-      enhancedPrompt: prompt, 
-      musicMood: "Neutral cinematic", 
-      recommendedGenre: "cinematic" 
-    };
+    return JSON.parse(response.choices[0].message.content || '{}');
+  } catch {
+    return { enhancedPrompt: prompt, musicMood: 'Neutral cinematic', recommendedGenre: 'cinematic' };
   }
 };
 
-// Agent Image: Gemini 2.5 Flash Image
+// Agent Image: DALL-E 3 via OpenRouter
 export const generateArt = async (prompt: string, aspectRatio: AspectRatio): Promise<ImageFile> => {
-  const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: prompt,
-    config: {
-      imageConfig: {
-        aspectRatio: aspectRatio === AspectRatio.LANDSCAPE ? "16:9" : "9:16"
-      }
-    }
+  const client = createClient();
+
+  const size = aspectRatio === AspectRatio.LANDSCAPE ? '1792x1024' : '1024x1792';
+
+  const response = await client.images.generate({
+    model: 'openai/dall-e-3',
+    prompt,
+    size: size as any,
+    response_format: 'b64_json',
+    n: 1,
   });
 
-  const part = response.candidates[0].content.parts.find(p => p.inlineData);
-  if (!part?.inlineData) throw new Error("Artist agent failed.");
+  const b64 = response.data[0].b64_json!;
+  const dataUrl = `data:image/png;base64,${b64}`;
 
-  const base64 = part.inlineData.data;
-  const byteCharacters = atob(base64);
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
-  }
-  const byteArray = new Uint8Array(byteNumbers);
-  const blob = new Blob([byteArray], {type: 'image/png'});
-  const file = new File([blob], "asset.png", {type: 'image/png'});
+  const byteArray = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const blob = new Blob([byteArray], { type: 'image/png' });
+  const file = new File([blob], 'asset.png', { type: 'image/png' });
 
-  return { file, base64 };
+  return { file, base64: dataUrl };
 };
 
-// Agent 2: Marketer
+// Agent 2: Marketer — vision + copywriting
 export const marketAnalysis = async (
-  image: ImageFile, 
-  prompt: string, 
-  config: AgentConfig, 
+  image: ImageFile,
+  prompt: string,
+  config: AgentConfig,
   platform: SocialPlatform,
   productImages?: ImageFile[],
   logo?: ImageFile
-): Promise<{copy: string; sources: GroundingSource[]}> => {
-  const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
-  
-  const content: any[] = [
-    { text: `Analyze current viral trends for ${platform} and write high-converting ad copy for this concept: "${prompt}". Use the provided images (generated scene, product shots, logo) for context.` },
+): Promise<{ copy: string; sources: GroundingSource[] }> => {
+  const client = createClient();
+
+  const userContent: OpenAI.ChatCompletionContentPart[] = [
     {
-      inlineData: {
-        mimeType: image.file.type,
-        data: image.base64.split(',')[1]
-      }
-    }
+      type: 'text',
+      text: `Analyze current viral trends for ${platform} and write high-converting ad copy for this concept: "${prompt}". Use the provided images (generated scene, product shots, logo) for context.`,
+    },
+    { type: 'image_url', image_url: { url: image.base64 } },
   ];
 
-  if (productImages) {
-    productImages.forEach(img => {
-      content.push({
-        inlineData: { mimeType: img.file.type, data: img.base64.split(',')[1] }
-      });
-    });
-  }
+  productImages?.forEach(img => {
+    userContent.push({ type: 'image_url', image_url: { url: img.base64 } });
+  });
 
   if (logo) {
-    content.push({
-      inlineData: { mimeType: logo.file.type, data: logo.base64.split(',')[1] }
-    });
+    userContent.push({ type: 'image_url', image_url: { url: logo.base64 } });
   }
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
-    contents: [{ role: 'user', parts: content }],
-    config: { 
-      systemInstruction: `PERSONA: ${config.marketerPersona}. Use Google Search to find real-time trends related to the product shown.`,
-      tools: [{googleSearch: {}}]
-    }
+  const response = await client.chat.completions.create({
+    model: 'google/gemini-2.5-pro',
+    messages: [
+      {
+        role: 'system',
+        content: `PERSONA: ${config.marketerPersona}. Write compelling, platform-optimized ad copy for ${platform}.`,
+      },
+      { role: 'user', content: userContent },
+    ],
   });
 
-  const copy = response.text || "Erreur de génération marketing.";
-  const sources: GroundingSource[] = [];
-  const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-  if (chunks) {
-    chunks.forEach((chunk: any) => {
-      if (chunk.web) {
-        sources.push({
-          title: chunk.web.title || "Source tendance",
-          uri: chunk.web.uri
-        });
-      }
-    });
-  }
-
-  return { copy, sources };
-};
-
-// Agent 3: Director
-export const generateCampaignVideo = async (
-  image: ImageFile, 
-  marketingCopy: string, 
-  aspectRatio: AspectRatio,
-  platform: SocialPlatform
-): Promise<{url: string; video: any}> => {
-  const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
-  
-  const scriptResponse = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
-    contents: `Create a motion prompt for Veo 3.1 based on this script: ${marketingCopy}. The visuals must be high-end.`,
-  });
-  
-  const motionPrompt = scriptResponse.text || "Cinematic movement.";
-
-  let operation = await ai.models.generateVideos({
-    model: 'veo-3.1-fast-generate-preview',
-    prompt: motionPrompt,
-    image: {
-      imageBytes: image.base64,
-      mimeType: 'image/png',
-    },
-    config: {
-      numberOfVideos: 1,
-      resolution: '720p',
-      aspectRatio: aspectRatio,
-    }
-  });
-
-  while (!operation.done) {
-    await new Promise((resolve) => setTimeout(resolve, 10000));
-    operation = await ai.operations.getVideosOperation({operation: operation});
-  }
-
-  const videoObject = operation.response?.generatedVideos?.[0]?.video;
-  if (!videoObject?.uri) throw new Error('Video production failed.');
-
-  const res = await fetch(`${videoObject.uri}&key=${process.env.API_KEY}`);
-  const blob = await res.blob();
-  return { url: URL.createObjectURL(blob), video: videoObject };
+  const copy = response.choices[0].message.content || 'Erreur de génération marketing.';
+  return { copy, sources: [] };
 };
