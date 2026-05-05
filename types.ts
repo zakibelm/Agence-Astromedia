@@ -68,4 +68,6 @@ export interface ProductionData {
   groundingSources?: GroundingSource[];
   selectedMusic?: MusicTrack;
   musicMoodSuggestion?: string;
+  productAssets?: ImageFile[];
+  logo?: ImageFile;
 }

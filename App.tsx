@@ -48,21 +48,36 @@ const App: React.FC = () => {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>(AspectRatio.LANDSCAPE);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const startProduction = async (prompt: string, ar: AspectRatio, platform: SocialPlatform, manualMusic: MusicTrack | null) => {
+  const startProduction = async (
+    prompt: string, 
+    ar: AspectRatio, 
+    platform: SocialPlatform, 
+    manualMusic: MusicTrack | null,
+    productImages: ImageFile[],
+    logo: ImageFile | null
+  ) => {
     setAspectRatio(ar);
     setProd({ 
       initialPrompt: prompt, 
       enhancedPrompt: "", 
       targetPlatform: platform, 
       groundingSources: [],
-      selectedMusic: manualMusic || undefined
+      selectedMusic: manualMusic || undefined,
+      productAssets: productImages,
+      logo: logo || undefined
     });
     
     try {
       setAppState(AppState.ORCHESTRATING);
       
       // L'Orchestrateur décide du visuel ET de la recommandation musicale
-      const { enhancedPrompt, musicMood, recommendedGenre } = await orchestrate(prompt, config, platform);
+      const { enhancedPrompt, musicMood, recommendedGenre } = await orchestrate(
+        prompt, 
+        config, 
+        platform,
+        productImages,
+        logo || undefined
+      );
       
       // Si l'utilisateur n'a pas forcé de musique, on prend celle du réalisateur
       let finalMusic = manualMusic;
@@ -92,7 +107,14 @@ const App: React.FC = () => {
     if (!prod.image) return;
     try {
       setAppState(AppState.MARKETING);
-      const { copy, sources } = await marketAnalysis(prod.image, prod.initialPrompt, config, prod.targetPlatform);
+      const { copy, sources } = await marketAnalysis(
+        prod.image, 
+        prod.initialPrompt, 
+        config, 
+        prod.targetPlatform,
+        prod.productAssets,
+        prod.logo
+      );
       setProd(prev => ({ ...prev, marketingCopy: copy, groundingSources: sources }));
       setAppState(AppState.SCRIPTING);
       
@@ -271,6 +293,26 @@ const App: React.FC = () => {
                   </div>
 
                   <div className="flex flex-col gap-4">
+                    {(prod.logo || (prod.productAssets && prod.productAssets.length > 0)) && (
+                      <div className="bg-[#111] p-6 rounded-3xl border border-gray-800">
+                         <h4 className="text-white text-xs font-bold mb-4 flex items-center gap-2">
+                           <Sparkles size={14} className="text-indigo-400"/> Identité Visuelle Utilisée
+                         </h4>
+                         <div className="flex flex-wrap gap-3">
+                            {prod.logo && (
+                              <div className="w-12 h-12 bg-white/5 rounded-lg p-2 border border-white/10 flex items-center justify-center">
+                                <img src={prod.logo.base64} className="max-w-full max-h-full object-contain" title="Logo de marque" />
+                              </div>
+                            )}
+                            {prod.productAssets?.map((asset, i) => (
+                              <div key={i} className="w-12 h-12 rounded-lg overflow-hidden border border-white/10">
+                                <img src={asset.base64} className="w-full h-full object-cover" title="Produit" />
+                              </div>
+                            ))}
+                         </div>
+                      </div>
+                    )}
+
                     <div className="bg-indigo-600/10 border border-indigo-500/30 p-6 rounded-3xl">
                        <h4 className="text-white text-sm font-bold mb-2">Astromédia Intelligence d'Élite</h4>
                        <p className="text-gray-400 text-xs leading-relaxed">Contenu optimisé par nos agents pour une audience {prod.targetPlatform}. Le réalisateur a choisi un mood "{prod.musicMoodSuggestion}" pour maximiser l'émotion.</p>
