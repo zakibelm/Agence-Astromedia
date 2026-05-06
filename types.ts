@@ -4,6 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
+// ── Auth Types ──────────────────────────────────────────────────
+
+export interface User {
+  id: string;
+  email: string;
+  fullName?: string;
+  avatarUrl?: string;
+  createdAt: string;
+}
+
+export interface AuthSession {
+  user: User | null;
+  token?: string;
+}
+
 // ── RAG Brand Context Types ──────────────────────────────────────
 
 export type FileExtractionStatus = 'idle' | 'processing' | 'ready' | 'error';
@@ -46,6 +61,7 @@ export interface BrandFileRecord {
 
 export interface BrandSession {
   id: string;
+  ownerId: string;               // Link to User.id
   name: string;                 // "Client Nike Q2 2025"
   clientName?: string;
   description?: string;

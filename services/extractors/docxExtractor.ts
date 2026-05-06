@@ -28,6 +28,8 @@ export const extractDocx = async (file: File, sessionId: string): Promise<BrandC
         content: chunkContent,
         pageOrSection: `Section ${index + 1}`,
         tokenCount: Math.ceil(chunkContent.length / 4),
+        tags: [],
+        weight: 5,
         createdAt: new Date().toISOString(),
       });
       index++;

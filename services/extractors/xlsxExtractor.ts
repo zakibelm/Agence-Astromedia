@@ -27,6 +27,8 @@ export const extractExcel = async (file: File, sessionId: string): Promise<Brand
         content: `Sheet: ${sheetName}\n\n${csvContent}`,
         pageOrSection: `Sheet: ${sheetName}`,
         tokenCount: Math.ceil(csvContent.length / 4),
+        tags: [],
+        weight: 5,
         createdAt: new Date().toISOString(),
       });
     }

@@ -41,6 +41,8 @@ export const extractPdf = async (file: File, sessionId: string): Promise<BrandCh
           content: chunkContent,
           pageOrSection: `Page ${i}${subIndex > 0 ? ` (Part ${subIndex + 1})` : ''}`,
           tokenCount: Math.ceil(chunkContent.length / 4),
+          tags: [],
+          weight: 5,
           createdAt: new Date().toISOString(),
         });
         subIndex++;

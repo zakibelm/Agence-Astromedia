@@ -131,9 +131,10 @@ export const saveSession = async (session: BrandSession) => {
   await db.put(SESSION_STORE, session);
 };
 
-export const getSessions = async (): Promise<BrandSession[]> => {
+export const getSessions = async (ownerId: string): Promise<BrandSession[]> => {
   const db = await getDB();
-  return db.getAll(SESSION_STORE);
+  const all = await db.getAll(SESSION_STORE);
+  return all.filter(s => s.ownerId === ownerId);
 };
 
 export const deleteSession = async (sessionId: string) => {

@@ -8,6 +8,8 @@ import { orchestrate, marketAnalysis, directorAgent, validationAgent } from './s
 import { generateMediaBlotato, publishBlotato, scheduleBlotato } from './services/blotatoService';
 import { approveAndSave, loadMediaHub } from './services/mediaHubService';
 import SettingsPage from './components/SettingsPage';
+import { AuthPage } from './components/AuthPage';
+import * as authService from './services/authService';
 import {
   AppState,
   AspectRatio,
@@ -19,7 +21,8 @@ import {
   ValidationResult,
   ApprovedMedia,
   BrandSession,
-  BrandChunk
+  BrandChunk,
+  User
 } from './types';
 import { BrandContextPanel } from './components/BrandContextPanel';
 import * as ragService from './services/ragService';
@@ -46,6 +49,7 @@ const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(
     () => loadSettings().apiKey ? AppState.IDLE : AppState.SETTINGS
   );
+  const [currentUser, setCurrentUser] = useState<User | null>(authService.getCurrentSession().user);
 
   const handleSaveSettings = (s: AppSettings) => {
     saveSettings(s);
@@ -202,6 +206,8 @@ const App: React.FC = () => {
     }
   };
 
+  if (!currentUser) return <AuthPage onLogin={setCurrentUser} />;
+
   return (
     <div className="h-screen bg-[#050505] text-gray-200 flex flex-col font-sans overflow-hidden">
       <header className="p-6 border-b border-gray-900 flex justify-between items-center bg-black/50 backdrop-blur-xl z-50">
@@ -249,8 +255,17 @@ const App: React.FC = () => {
             <UsersIcon size={16} />
             {activeBrandSession ? activeBrandSession.name : 'Knowledge'}
           </button>
-          <button
-            onClick={() => setAppState(AppState.SETTINGS)}
+            <button 
+              onClick={() => {
+                authService.signOut();
+                setCurrentUser(null);
+              }}
+              className="px-4 py-2.5 bg-white/5 hover:bg-red-500/10 hover:text-red-400 border border-white/10 rounded-xl text-sm font-medium transition-all"
+            >
+              Déconnexion
+            </button>
+            <button
+              onClick={() => setAppState(AppState.SETTINGS)}
             className="p-3 hover:bg-gray-900 rounded-xl transition-colors border border-gray-800 relative"
           >
             <Settings size={20} />
@@ -354,6 +369,7 @@ const App: React.FC = () => {
         <div className={`transition-all duration-500 ease-in-out border-l border-white/5 ${showBrandPanel ? 'w-[400px] opacity-100' : 'w-0 opacity-0 overflow-hidden'}`}>
            <BrandContextPanel 
              apiKey={settings.apiKey} 
+             user={currentUser!}
              onSessionChange={setActiveBrandSession} 
            />
         </div>

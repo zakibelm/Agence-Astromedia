@@ -22,6 +22,8 @@ const chunkText = (text: string, sessionId: string, fileName: string, fileType: 
         content,
         pageOrSection: `Chunk ${index + 1}`,
         tokenCount: Math.ceil(content.length / 4),
+        tags: [],
+        weight: 5,
         createdAt: new Date().toISOString(),
       });
       index++;

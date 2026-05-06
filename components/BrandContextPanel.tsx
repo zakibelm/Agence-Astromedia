@@ -11,21 +11,22 @@ import {
   UsersIcon,
   PlusIcon
 } from '@heroicons/react/24/outline';
-import { BrandSession, BrandChunk, BrandFileRecord } from '../types';
+import { BrandSession, BrandChunk, BrandFileRecord, User } from '../types';
 import * as ragService from '../services/ragService';
 import { uuidv4 } from '../utils/uuid';
 
 interface BrandContextPanelProps {
   apiKey: string;
+  user: User;
   onSessionChange: (session: BrandSession | null) => void;
 }
 
-export const BrandContextPanel = ({ apiKey, onSessionChange }: BrandContextPanelProps) => {
+export const BrandContextPanel = ({ apiKey, user, onSessionChange }: BrandContextPanelProps) => {
   const [sessions, setSessions] = useState<BrandSession[]>([]);
   const [activeSession, setActiveSession] = useState<BrandSession | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<BrandChunk[]>([]);
+  const [searchResults, setSearchResults] = useState<ragService.RetrievedChunk[]>([]);
   const [chunks, setChunks] = useState<BrandChunk[]>([]);
 
   useEffect(() => {
@@ -41,7 +42,7 @@ export const BrandContextPanel = ({ apiKey, onSessionChange }: BrandContextPanel
   }, [activeSession]);
 
   const loadSessions = async () => {
-    const data = await ragService.getSessions();
+    const data = await ragService.getSessions(user.id);
     setSessions(data);
     if (data.length > 0 && !activeSession) {
       setActiveSession(data[0]);
@@ -60,6 +61,7 @@ export const BrandContextPanel = ({ apiKey, onSessionChange }: BrandContextPanel
 
     const newSession: BrandSession = {
       id: uuidv4(),
+      ownerId: user.id,
       name,
       files: [],
       createdAt: new Date().toISOString(),
@@ -245,12 +247,13 @@ export const BrandContextPanel = ({ apiKey, onSessionChange }: BrandContextPanel
              {searchResults.length > 0 && (
                <div className="space-y-3 mt-4">
                   {searchResults.map(result => (
-                    <div key={result.id} className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-xs">
+                    <div key={result.chunk.id} className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-xs">
                       <div className="flex items-center justify-between mb-2 opacity-50 italic">
-                         <span>{result.sourceFile}</span>
-                         <span>{result.pageOrSection}</span>
+                         <span>{result.chunk.sourceFile}</span>
+                         <span>{result.chunk.pageOrSection}</span>
                       </div>
-                      <p className="text-white/80 leading-relaxed italic">"{result.content.slice(0, 150)}..."</p>
+                      <p className="text-white/80 leading-relaxed italic">"{result.chunk.content.slice(0, 150)}..."</p>
+                      <div className="mt-2 text-[10px] text-indigo-400 font-bold uppercase tracking-widest">Score: {result.score.toFixed(2)}</div>
                     </div>
                   ))}
                </div>
