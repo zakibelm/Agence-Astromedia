@@ -13,17 +13,17 @@ interface Props {
 const getMessages = (state: AppState) => {
   switch(state) {
     case AppState.ORCHESTRATING: 
-      return ["ORCHESTRATOR: Analyzing requirements...", "Building visual hierarchy...", "Enhancing cinematic prompts..."];
-    case AppState.IMAGING: 
-      return ["ARTIST: Generating high-fidelity assets...", "Applying global illumination...", "Rendering cinematic textures..."];
+      return ["ORCHESTRATOR: Analyzing strategy...", "Structuring the campaign...", "Extracting core vision..."];
     case AppState.MARKETING: 
-      return ["MARKETER: Analyzing visual impact...", "Drafting advertising copy...", "Defining brand voice..."];
-    case AppState.SCRIPTING: 
-      return ["DIRECTOR: Planning camera motion...", "Blocking the shot...", "Preparing cinematography..."];
-    case AppState.VIDEO_GEN: 
-      return ["VEO: Rendering the master clip...", "Applying temporal stability...", "Finalizing production..."];
+      return ["MARKETER: Analyzing target platform...", "Drafting compelling copy...", "Applying viral hooks..."];
+    case AppState.DIRECTING: 
+      return ["DIRECTOR: Planning the visual execution...", "Mapping variables for Blotato...", "Creating the cinematic blueprint..."];
+    case AppState.MEDIA_GEN: 
+      return ["MEDIA CREATOR: Generating assets via Blotato...", "Applying template logic...", "Waiting for async rendering..."];
+    case AppState.VALIDATION: 
+      return ["VALIDATOR: Running QA score...", "Checking brand consistency...", "Verifying message alignment..."];
     default: 
-      return ["Workflow processing..."];
+      return ["System processing...", "Please hold..."];
   }
 };
 

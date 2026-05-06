@@ -22,6 +22,11 @@ const IMAGE_MODELS = [
   { id: 'black-forest-labs/flux-schnell',       label: 'FLUX Schnell (rapide)',    provider: 'Black Forest Labs' },
 ];
 
+const VIDEO_MODELS = [
+  { id: 'kwaivgi/kling-v3.0-pro',               label: 'Kling v3.0 Pro',           provider: 'Kuaishou' },
+  { id: 'minimax/hailuo-2.3',                   label: 'Hailuo 2.3',               provider: 'MiniMax' },
+];
+
 const AGENTS = [
   { key: 'orchestratorPersona', label: 'Orchestrateur', desc: 'Transforme le brief en vision cinématique + recommande la musique' },
   { key: 'marketerPersona',     label: 'Marketeur',     desc: 'Analyse les tendances et rédige le copywriting de la campagne' },
@@ -65,6 +70,7 @@ const SettingsPage: React.FC<Props> = ({ settings, onSave }) => {
     setDraft(prev => ({ ...prev, [key]: value }));
 
   const apiKeyMissing = !draft.apiKey.trim();
+  const blotatoApiKeyMissing = !draft.blotatoApiKey.trim();
 
   return (
     <div className="flex-grow flex flex-col items-center p-8 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 gap-8 overflow-y-auto custom-scrollbar pb-16">
@@ -78,7 +84,7 @@ const SettingsPage: React.FC<Props> = ({ settings, onSave }) => {
       {/* Section Clé API */}
       <section className="w-full bg-[#111] border border-gray-800 rounded-2xl p-6 flex flex-col gap-4">
         <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-widest">
-          <Key size={14} /> Clé API OpenRouter
+          <Key size={14} /> Clé API OpenRouter (Orchestrateur & Marketeur)
         </div>
 
         <div className="relative">
@@ -110,6 +116,27 @@ const SettingsPage: React.FC<Props> = ({ settings, onSave }) => {
           <span className="text-indigo-400 font-mono">openrouter.ai/keys</span>
           {' '}— elle est stockée uniquement dans votre navigateur (localStorage).
         </p>
+
+        <div className="flex items-center gap-2 text-orange-400 font-bold text-xs uppercase tracking-widest mt-4">
+          <Key size={14} /> Clé API Blotato (Créateur Média & Diffusion)
+        </div>
+
+        <div className="relative">
+          <input
+            type={showKey ? 'text' : 'password'}
+            value={draft.blotatoApiKey}
+            onChange={e => update('blotatoApiKey', e.target.value)}
+            placeholder="blt_..."
+            className="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-3 pr-12 text-sm font-mono focus:border-orange-500 outline-none placeholder:text-gray-700"
+          />
+        </div>
+
+        {blotatoApiKeyMissing && (
+          <div className="flex items-center gap-2 text-amber-500 text-xs bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-2">
+            <AlertTriangle size={13} />
+            Aucune clé API Blotato renseignée — la création média et la diffusion ne fonctionneront pas.
+          </div>
+        )}
       </section>
 
       {/* Section Modèles */}
@@ -118,7 +145,7 @@ const SettingsPage: React.FC<Props> = ({ settings, onSave }) => {
           <Bot size={14} /> Modèles IA
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <ModelSelect
             label="Modèle Texte (orchestrateur · marketeur)"
             value={draft.textModel}
@@ -130,6 +157,12 @@ const SettingsPage: React.FC<Props> = ({ settings, onSave }) => {
             value={draft.imageModel}
             options={IMAGE_MODELS}
             onChange={v => update('imageModel', v)}
+          />
+          <ModelSelect
+            label="Modèle Génération Vidéo"
+            value={draft.videoModel || 'kwaivgi/kling-v3.0-pro'}
+            options={VIDEO_MODELS}
+            onChange={v => update('videoModel', v)}
           />
         </div>
       </section>
@@ -161,7 +194,7 @@ const SettingsPage: React.FC<Props> = ({ settings, onSave }) => {
       {/* Save */}
       <button
         onClick={() => onSave(draft)}
-        disabled={apiKeyMissing}
+        disabled={apiKeyMissing || blotatoApiKeyMissing}
         className="px-12 py-4 bg-white text-black font-bold rounded-full hover:bg-indigo-400 hover:text-white transition-all flex items-center gap-3 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-black"
       >
         <Save size={18} /> Sauvegarder & Retour
