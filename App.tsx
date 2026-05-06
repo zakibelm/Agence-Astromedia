@@ -26,30 +26,53 @@ import {
 } from './types';
 import { BrandContextPanel } from './components/BrandContextPanel';
 import * as ragService from './services/ragService';
+const DEFAULT_SETTINGS: AppSettings = {
+  textModel: 'openai/o3-mini-high',
+  imageModel: 'black-forest-labs/flux-schnell',
+  videoModel: 'kwaivgi/kling-v3.0-pro',
+  orchestratorPersona: 'A world-class creative strategist who conceptualizes high-end advertising campaigns. You understand current viral trends, platform specifics, and audience psychology.',
+  marketerPersona: 'A world-class advertising executive. You use real-time data to create hyper-relevant viral content.',
+  directorPersona: 'A visionary Hollywood director known for breathtaking visuals.',
+};
+
 const loadSettings = (): AppSettings => {
   const saved = localStorage.getItem('astromedia_settings');
-  if (saved) return JSON.parse(saved);
-  return {
-    apiKey: import.meta.env.VITE_OPENROUTER_API_KEY || '',
-    blotatoApiKey: import.meta.env.VITE_BLOTATO_API_KEY || '',
-    textModel: 'openai/o3-mini-high',
-    imageModel: 'black-forest-labs/flux-schnell',
-    videoModel: 'kwaivgi/kling-v3.0-pro',
-    orchestratorPersona: 'A world-class creative strategist who conceptualizes high-end advertising campaigns. You understand current viral trends, platform specifics, and audience psychology.',
-    marketerPersona: 'A world-class advertising executive. You use real-time data to create hyper-relevant viral content.',
-    directorPersona: 'A visionary Hollywood director known for breathtaking visuals.'
-  };
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      // Strip legacy upstream keys that may linger in localStorage from older versions
+      delete parsed.apiKey;
+      delete parsed.blotatoApiKey;
+      return { ...DEFAULT_SETTINGS, ...parsed };
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  }
+  return DEFAULT_SETTINGS;
 };
 
 const saveSettings = (s: AppSettings) => {
   localStorage.setItem('astromedia_settings', JSON.stringify(s));
 };
+
+const backendConfigured = !!(import.meta.env.VITE_BACKEND_PROXY_KEY as string);
+
 const App: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
   const [appState, setAppState] = useState<AppState>(
-    () => loadSettings().apiKey ? AppState.IDLE : AppState.SETTINGS
+    () => (backendConfigured ? AppState.IDLE : AppState.SETTINGS),
   );
-  const [currentUser, setCurrentUser] = useState<User | null>(authService.getCurrentSession().user);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    authService.getCurrentUser().then((u) => {
+      setCurrentUser(u);
+      setAuthReady(true);
+    });
+    const unsubscribe = authService.onAuthChange(setCurrentUser);
+    return unsubscribe;
+  }, []);
 
   const handleSaveSettings = (s: AppSettings) => {
     saveSettings(s);
@@ -206,6 +229,14 @@ const App: React.FC = () => {
     }
   };
 
+  if (!authReady) {
+    return (
+      <div className="min-h-screen bg-[#020203] flex items-center justify-center text-gray-500 text-sm">
+        Loading session...
+      </div>
+    );
+  }
+
   if (!currentUser) return <AuthPage onLogin={setCurrentUser} />;
 
   return (
@@ -222,9 +253,9 @@ const App: React.FC = () => {
         </div>
         
         <div className="flex items-center gap-3">
-          {(!settings.apiKey || !settings.blotatoApiKey) && (
+          {!backendConfigured && (
             <div className="flex items-center gap-2 text-amber-400 text-xs bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
-              <AlertTriangle size={13} /> Configuration Incomplète
+              <AlertTriangle size={13} /> Backend non configuré (VITE_BACKEND_PROXY_KEY)
             </div>
           )}
           {/* Media Hub button with badge */}
@@ -255,9 +286,9 @@ const App: React.FC = () => {
             <UsersIcon size={16} />
             {activeBrandSession ? activeBrandSession.name : 'Knowledge'}
           </button>
-            <button 
-              onClick={() => {
-                authService.signOut();
+            <button
+              onClick={async () => {
+                await authService.signOut();
                 setCurrentUser(null);
               }}
               className="px-4 py-2.5 bg-white/5 hover:bg-red-500/10 hover:text-red-400 border border-white/10 rounded-xl text-sm font-medium transition-all"
@@ -367,10 +398,9 @@ const App: React.FC = () => {
 
         {/* Brand Context Side Panel */}
         <div className={`transition-all duration-500 ease-in-out border-l border-white/5 ${showBrandPanel ? 'w-[400px] opacity-100' : 'w-0 opacity-0 overflow-hidden'}`}>
-           <BrandContextPanel 
-             apiKey={settings.apiKey} 
+           <BrandContextPanel
              user={currentUser!}
-             onSessionChange={setActiveBrandSession} 
+             onSessionChange={setActiveBrandSession}
            />
         </div>
       </main>

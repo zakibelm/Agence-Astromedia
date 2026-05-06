@@ -14,11 +14,6 @@ export interface User {
   createdAt: string;
 }
 
-export interface AuthSession {
-  user: User | null;
-  token?: string;
-}
-
 // ── RAG Brand Context Types ──────────────────────────────────────
 
 export type FileExtractionStatus = 'idle' | 'processing' | 'ready' | 'error';
@@ -168,8 +163,6 @@ export type BudgetTracker = {
 };
 
 export interface AppSettings {
-  apiKey: string;
-  blotatoApiKey: string;
   textModel: string;
   imageModel: string;
   videoModel: string;
@@ -179,8 +172,6 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  apiKey: import.meta.env.VITE_OPENROUTER_API_KEY || '',
-  blotatoApiKey: import.meta.env.VITE_BLOTATO_API_KEY || '',
   textModel: 'google/gemini-2.5-pro',
   imageModel: 'black-forest-labs/flux-schnell',
   videoModel: 'kwaivgi/kling-v3.0-pro',

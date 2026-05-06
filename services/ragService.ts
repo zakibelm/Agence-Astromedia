@@ -170,9 +170,8 @@ export const getChunksBySession = async (sessionId: string): Promise<BrandChunk[
 // --- EXTRACTION COORDINATOR ---
 
 export const ingestFile = async (
-  file: File, 
-  sessionId: string, 
-  openRouterApiKey: string
+  file: File,
+  sessionId: string,
 ): Promise<BrandChunk[]> => {
   const ext = file.name.split('.').pop()?.toLowerCase();
   const name = file.name.toLowerCase();
@@ -202,10 +201,10 @@ export const ingestFile = async (
       chunks = await extractExcel(file, sessionId);
       defaultTags.push('data');
     } else if (['png', 'jpg', 'jpeg', 'webp'].includes(ext || '')) {
-      chunks = await extractImage(file, sessionId, openRouterApiKey);
+      chunks = await extractImage(file, sessionId);
       defaultTags.push('visual');
     } else if (['mp4', 'webm', 'mov'].includes(ext || '')) {
-      chunks = await extractVideo(file, sessionId, openRouterApiKey);
+      chunks = await extractVideo(file, sessionId);
       defaultTags.push('visual', 'motion');
     } else {
       throw new Error(`Unsupported file type: ${ext}`);

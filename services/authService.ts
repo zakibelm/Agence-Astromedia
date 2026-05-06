@@ -1,75 +1,75 @@
-// services/authService.ts
-import { User, AuthSession } from '../types';
-import { uuidv4 } from '../utils/uuid';
+// services/authService.ts — real auth via Supabase. Passwords hashed server-side.
+import { Session } from '@supabase/supabase-js';
+import { User } from '../types';
+import { supabase } from './supabaseClient';
 
-const USERS_KEY = 'astromedia_users';
-const SESSION_KEY = 'astromedia_current_session';
-
-// Helper to load users from localStorage (Mock DB)
-const loadUsers = (): User[] => {
-  const data = localStorage.getItem(USERS_KEY);
-  return data ? JSON.parse(data) : [];
-};
-
-const saveUser = (user: User) => {
-  const users = loadUsers();
-  localStorage.setItem(USERS_KEY, JSON.stringify([...users, user]));
-};
-
-export const getCurrentSession = (): AuthSession => {
-  const data = localStorage.getItem(SESSION_KEY);
-  return data ? JSON.parse(data) : { user: null };
-};
-
-export const signUp = async (email: string, password: string, fullName?: string): Promise<User> => {
-  // Simulate delay
-  await new Promise(r => setTimeout(r, 1000));
-
-  const users = loadUsers();
-  if (users.some(u => u.email === email)) {
-    throw new Error('Cet email est déjà utilisé.');
-  }
-
-  const newUser: User = {
-    id: uuidv4(),
-    email,
-    fullName,
-    createdAt: new Date().toISOString()
+const toUser = (session: Session | null): User | null => {
+  if (!session?.user) return null;
+  const u = session.user;
+  return {
+    id: u.id,
+    email: u.email ?? '',
+    fullName: (u.user_metadata?.full_name as string) ?? undefined,
+    avatarUrl: (u.user_metadata?.avatar_url as string) ?? undefined,
+    createdAt: u.created_at,
   };
-
-  saveUser(newUser);
-  
-  // Auto-login
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ user: newUser, token: 'mock-jwt-token' }));
-  
-  return newUser;
 };
 
-export const signIn = async (email: string, password: string): Promise<User> => {
-  await new Promise(r => setTimeout(r, 800));
+export const getCurrentUser = async (): Promise<User | null> => {
+  const { data } = await supabase.auth.getSession();
+  return toUser(data.session);
+};
 
-  const users = loadUsers();
-  const user = users.find(u => u.email === email);
-  
-  // In a real app, we'd check the password hash
+export const onAuthChange = (cb: (user: User | null) => void) => {
+  const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+    cb(toUser(session));
+  });
+  return () => subscription.subscription.unsubscribe();
+};
+
+export const signUp = async (
+  email: string,
+  password: string,
+  fullName?: string,
+): Promise<User> => {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: fullName ? { full_name: fullName } : undefined },
+  });
+  if (error) throw new Error(error.message);
+  const user = toUser(data.session);
   if (!user) {
-    throw new Error('Email ou mot de passe incorrect.');
+    // Email confirmation required — Supabase returns no session yet
+    throw new Error('Vérifiez votre email pour confirmer votre compte.');
   }
-
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ user, token: 'mock-jwt-token' }));
   return user;
 };
 
-export const signOut = () => {
-  localStorage.removeItem(SESSION_KEY);
+export const signIn = async (email: string, password: string): Promise<User> => {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw new Error('Email ou mot de passe incorrect.');
+  const user = toUser(data.session);
+  if (!user) throw new Error('Connexion impossible.');
+  return user;
+};
+
+export const signOut = async (): Promise<void> => {
+  await supabase.auth.signOut();
 };
 
 export const resetPassword = async (email: string): Promise<void> => {
-  await new Promise(r => setTimeout(r, 1000));
-  const users = loadUsers();
-  if (!users.some(u => u.email === email)) {
-    throw new Error('Aucun compte associé à cet email.');
-  }
-  // Simulate sending email
-  console.log(`Reset link sent to ${email}`);
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin,
+  });
+  if (error) throw new Error(error.message);
+};
+
+/**
+ * Returns the current Supabase JWT for backend calls.
+ * Refreshes automatically — never read access_token directly from localStorage.
+ */
+export const getAccessToken = async (): Promise<string | null> => {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
 };

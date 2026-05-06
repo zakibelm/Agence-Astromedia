@@ -2,47 +2,63 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { generateMediaBlotato } from '../../services/blotatoService';
 import { AppSettings, TemplateMapping } from '../../types';
 
-describe('blotatoService Unit Tests', () => {
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
+
+describe('blotatoService (backend proxy client)', () => {
   const dummySettings: AppSettings = {
-    apiKey: 'sk-or-dummy',
-    blotatoApiKey: 'blt_dummy',
-    textModel: '', imageModel: '', videoModel: '', orchestratorPersona: '', marketerPersona: '', directorPersona: ''
+    textModel: '',
+    imageModel: '',
+    videoModel: '',
+    orchestratorPersona: '',
+    marketerPersona: '',
+    directorPersona: '',
   };
 
   const dummyMapping: TemplateMapping = {
     templateId: 'test_tpl',
     format: 'video',
     variables: {
-      headline: 'H1', cta: 'Click', visual_style: 'Dark', scene_description: 'Test'
-    }
+      headline: 'H1',
+      cta: 'Click',
+      visual_style: 'Dark',
+      scene_description: 'Test',
+    },
   };
 
   beforeEach(() => {
-    vi.restoreAllMocks();
+    mockFetch.mockClear();
   });
 
-  it('generateMediaBlotato should succeed and not use fallback', async () => {
-    // We mocked the internal delay, let's just run it
-    // Wait, the original function uses Math.random() < 0.2 to simulate failure.
-    // We should mock Math.random to always return 0.5 so it succeeds.
-    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+  it('forwards templateMapping to /api/media/generate', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () =>
+        JSON.stringify({ url: 'https://media.example/abc.mp4', fallbackUsed: false }),
+    });
 
     const result = await generateMediaBlotato(dummyMapping, dummySettings);
+    expect(result.url).toBe('https://media.example/abc.mp4');
     expect(result.fallbackUsed).toBe(false);
-    expect(result.url).toContain('blotato-generated');
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(String(url)).toContain('/media/generate');
+    expect((init.headers as any)['x-astromedia-key']).toBeDefined();
+    const body = JSON.parse(init.body);
+    expect(body.templateMapping.templateId).toBe('test_tpl');
   });
 
-  it('generateMediaBlotato should retry and eventually fallback if random always fails', async () => {
-    // Mock Math.random to always return 0.1 so it fails
-    vi.spyOn(Math, 'random').mockReturnValue(0.1);
-    const consoleSpy = vi.spyOn(console, 'log');
+  it('throws ApiError when backend returns non-2xx', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      text: async () => JSON.stringify({ error: 'Upstream blotato error' }),
+    });
 
-    const result = await generateMediaBlotato(dummyMapping, dummySettings, 2); // limit retries to speed up
-    expect(result.fallbackUsed).toBe(true);
-    expect(result.url).toContain('fallback-media');
-    
-    // Check observability
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[Blotato Pipeline] MEDIA_GEN - ERROR'));
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[Blotato Pipeline] MEDIA_GEN_FALLBACK - INFO'));
-  }, 10000);
+    await expect(generateMediaBlotato(dummyMapping, dummySettings)).rejects.toMatchObject({
+      status: 502,
+      message: 'Upstream blotato error',
+    });
+  });
 });

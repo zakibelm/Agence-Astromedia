@@ -16,12 +16,11 @@ import * as ragService from '../services/ragService';
 import { uuidv4 } from '../utils/uuid';
 
 interface BrandContextPanelProps {
-  apiKey: string;
   user: User;
   onSessionChange: (session: BrandSession | null) => void;
 }
 
-export const BrandContextPanel = ({ apiKey, user, onSessionChange }: BrandContextPanelProps) => {
+export const BrandContextPanel = ({ user, onSessionChange }: BrandContextPanelProps) => {
   const [sessions, setSessions] = useState<BrandSession[]>([]);
   const [activeSession, setActiveSession] = useState<BrandSession | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -95,7 +94,7 @@ export const BrandContextPanel = ({ apiKey, user, onSessionChange }: BrandContex
       setActiveSession({ ...updatedSession });
 
       try {
-        const newChunks = await ragService.ingestFile(file, activeSession.id, apiKey);
+        const newChunks = await ragService.ingestFile(file, activeSession.id);
         fileRecord.status = 'ready';
         fileRecord.chunkCount = newChunks.length;
       } catch (err) {

@@ -3,8 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useState } from 'react';
-import { Key, Eye, EyeOff, Bot, ImageIcon, Save, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Bot, ImageIcon, Save, ChevronDown, ShieldCheck } from 'lucide-react';
 import { AppSettings } from '../types';
+
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? '/api';
+const PROXY_KEY_SET = !!(import.meta.env.VITE_BACKEND_PROXY_KEY as string);
 
 const TEXT_MODELS = [
   { id: 'google/gemini-2.5-pro',               label: 'Gemini 2.5 Pro',          provider: 'Google' },
@@ -64,13 +67,9 @@ const ModelSelect: React.FC<{
 
 const SettingsPage: React.FC<Props> = ({ settings, onSave }) => {
   const [draft, setDraft] = useState<AppSettings>(settings);
-  const [showKey, setShowKey] = useState(false);
 
   const update = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) =>
     setDraft(prev => ({ ...prev, [key]: value }));
-
-  const apiKeyMissing = !draft.apiKey.trim();
-  const blotatoApiKeyMissing = !draft.blotatoApiKey.trim();
 
   return (
     <div className="flex-grow flex flex-col items-center p-8 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 gap-8 overflow-y-auto custom-scrollbar pb-16">
@@ -81,62 +80,27 @@ const SettingsPage: React.FC<Props> = ({ settings, onSave }) => {
         <p className="text-gray-500 text-sm mt-1">Configuration de votre studio IA</p>
       </div>
 
-      {/* Section Clé API */}
-      <section className="w-full bg-[#111] border border-gray-800 rounded-2xl p-6 flex flex-col gap-4">
-        <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-widest">
-          <Key size={14} /> Clé API OpenRouter (Orchestrateur & Marketeur)
+      {/* Section Backend / Sécurité */}
+      <section className="w-full bg-[#111] border border-gray-800 rounded-2xl p-6 flex flex-col gap-3">
+        <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-widest">
+          <ShieldCheck size={14} /> Backend &amp; Secrets
         </div>
-
-        <div className="relative">
-          <input
-            type={showKey ? 'text' : 'password'}
-            value={draft.apiKey}
-            onChange={e => update('apiKey', e.target.value)}
-            placeholder="sk-or-v1-..."
-            className="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-3 pr-12 text-sm font-mono focus:border-indigo-500 outline-none placeholder:text-gray-700"
-          />
-          <button
-            type="button"
-            onClick={() => setShowKey(v => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-          >
-            {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
-        </div>
-
-        {apiKeyMissing && (
-          <div className="flex items-center gap-2 text-amber-500 text-xs bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-2">
-            <AlertTriangle size={13} />
-            Aucune clé API renseignée — le studio ne peut pas générer de contenu.
-          </div>
-        )}
-
-        <p className="text-xs text-gray-600">
-          Créez votre clé sur{' '}
-          <span className="text-indigo-400 font-mono">openrouter.ai/keys</span>
-          {' '}— elle est stockée uniquement dans votre navigateur (localStorage).
+        <p className="text-xs text-gray-400 leading-relaxed">
+          Les clés OpenRouter et Blotato sont désormais conservées uniquement côté serveur.
+          Le frontend communique avec le backend via une clé proxy partagée.
         </p>
-
-        <div className="flex items-center gap-2 text-orange-400 font-bold text-xs uppercase tracking-widest mt-4">
-          <Key size={14} /> Clé API Blotato (Créateur Média & Diffusion)
-        </div>
-
-        <div className="relative">
-          <input
-            type={showKey ? 'text' : 'password'}
-            value={draft.blotatoApiKey}
-            onChange={e => update('blotatoApiKey', e.target.value)}
-            placeholder="blt_..."
-            className="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-3 pr-12 text-sm font-mono focus:border-orange-500 outline-none placeholder:text-gray-700"
-          />
-        </div>
-
-        {blotatoApiKeyMissing && (
-          <div className="flex items-center gap-2 text-amber-500 text-xs bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-2">
-            <AlertTriangle size={13} />
-            Aucune clé API Blotato renseignée — la création média et la diffusion ne fonctionneront pas.
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 text-xs font-mono">
+          <div className="bg-black/40 rounded-xl border border-gray-800 px-4 py-3">
+            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Backend URL</div>
+            <div className="text-gray-200 break-all">{BACKEND_URL}</div>
           </div>
-        )}
+          <div className="bg-black/40 rounded-xl border border-gray-800 px-4 py-3">
+            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Proxy Key</div>
+            <div className={PROXY_KEY_SET ? 'text-emerald-400' : 'text-amber-400'}>
+              {PROXY_KEY_SET ? '✓ configurée (env)' : '⚠ VITE_BACKEND_PROXY_KEY manquante'}
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Section Modèles */}
@@ -194,8 +158,7 @@ const SettingsPage: React.FC<Props> = ({ settings, onSave }) => {
       {/* Save */}
       <button
         onClick={() => onSave(draft)}
-        disabled={apiKeyMissing || blotatoApiKeyMissing}
-        className="px-12 py-4 bg-white text-black font-bold rounded-full hover:bg-indigo-400 hover:text-white transition-all flex items-center gap-3 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-black"
+        className="px-12 py-4 bg-white text-black font-bold rounded-full hover:bg-indigo-400 hover:text-white transition-all flex items-center gap-3"
       >
         <Save size={18} /> Sauvegarder & Retour
       </button>

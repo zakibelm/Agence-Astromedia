@@ -31,9 +31,10 @@ describe('App Integration Tests', () => {
 
   it('renders IDLE state and handles form submission if keys are present', async () => {
     localStorage.setItem('astromedia_settings', JSON.stringify({
-      apiKey: 'test-key',
-      blotatoApiKey: 'test-key-blotato'
+      textModel: 'test-model'
     }));
+    // Simulate backend proxy key configured
+    (import.meta.env as any).VITE_BACKEND_PROXY_KEY = 'test';
 
     (openRouterService.orchestrate as any).mockResolvedValue({
       enhancedPrompt: 'Enhanced', musicMood: 'Happy', recommendedGenre: 'cinematic', strategy: 'Test'
