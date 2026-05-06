@@ -1,0 +1,91 @@
+# Local stack: Postgres + Redis + Backend API + Worker + Frontend.
+# Run: docker compose up --build
+# (Run from the repo root, where this file lives. Frontend = ./, backend = ./backend)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: astromedia
+      POSTGRES_PASSWORD: astromedia
+      POSTGRES_DB: astromedia
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astromedia -d astromedia"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      FRONTEND_URL: http://localhost:5173,http://localhost
+      DATABASE_URL: postgresql://astromedia:astromedia@postgres:5432/astromedia?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ASTROMEDIA_PROXY_KEY: ${ASTROMEDIA_PROXY_KEY:-dev-shared-secret-change-me}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      BLOTATO_API_KEY: ${BLOTATO_API_KEY}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-webhook-secret}
+      LOG_LEVEL: info
+    ports:
+      - "8080:8080"
+    # Apply pending migrations before starting the API
+    command: sh -c "npx prisma migrate deploy && node dist/server.js"
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      api:      { condition: service_started }
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://astromedia:astromedia@postgres:5432/astromedia?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      BLOTATO_API_KEY: ${BLOTATO_API_KEY}
+      WORKER_CONCURRENCY: 5
+      LOG_LEVEL: info
+    command: ["node", "dist/worker.js"]
+
+  web:
+    build:
+      context: .
+      args:
+        VITE_BACKEND_URL: /api
+        VITE_BACKEND_PROXY_KEY: ${ASTROMEDIA_PROXY_KEY:-dev-shared-secret-change-me}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
+volumes:
+  pgdata:

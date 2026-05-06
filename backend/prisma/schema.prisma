@@ -1,0 +1,77 @@
+// prisma/schema.prisma — Database schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String     @id @default(uuid())
+  name      String
+  slug      String     @unique
+  plan      Plan       @default(FREE)
+  createdAt DateTime   @default(now())
+  campaigns Campaign[]
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+model Campaign {
+  id              String         @id @default(uuid())
+  idempotencyKey  String         @unique
+  tenantId        String
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
+  
+  // Input
+  prompt          String
+  platform        String
+  
+  // Pipeline state
+  status          CampaignStatus @default(PENDING)
+  priority        Int            @default(5)
+  
+  // Intermediate results
+  enhancedPrompt  String?
+  strategy        String?
+  marketingCopy   String?
+  templateJson    Json?          // TemplateMapping
+  
+  // Output
+  mediaUrl        String?
+  blotatoJobId    String?
+  fallbackUsed    Boolean        @default(false)
+  validationJson  Json?          // ValidationResult
+  publishedAt     DateTime?
+  scheduledAt     DateTime?
+  
+  // Meta
+  durationMs      Int?
+  error           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  @@index([tenantId])
+  @@index([status])
+  @@index([blotatoJobId])
+}
+
+enum CampaignStatus {
+  PENDING
+  ORCHESTRATING
+  MARKETING
+  DIRECTING
+  MEDIA_GEN
+  VALIDATION
+  DECISION
+  PUBLISHING
+  SCHEDULING
+  COMPLETED
+  FAILED
+}
